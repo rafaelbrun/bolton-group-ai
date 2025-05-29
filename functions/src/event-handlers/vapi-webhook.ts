@@ -2,7 +2,7 @@ import { logger } from "firebase-functions/v1";
 import { onRequest } from "firebase-functions/v2/https";
 import {
   sendBookingNotificationSMS,
-  sendSMS,
+  sendConfirmationSMS,
   stringToBool,
 } from "../utils/utils";
 import * as admin from "firebase-admin";
@@ -271,7 +271,7 @@ const handleBookedValuation = async (
       dateOfValuationDDMMYYYY,
     } = message.analysis.structuredData;
 
-    await sendSMS(
+    await sendConfirmationSMS(
       message.call.customer.number,
       callRecipientFirstName,
       addressOfPropertyToBeEvaluated,

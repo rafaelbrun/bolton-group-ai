@@ -3,7 +3,7 @@ import { VapiClient } from "@vapi-ai/server-sdk";
 import { addressForSMS } from "./google-apis";
 
 const twilioPhoneNumber = "+61440137500";
-const boltonNotificationNumber = "+61430082223"
+const boltonNotificationNumber = "+61430082223";
 const vapiServerAPIKey = process.env.VAPI_SERVER_API_KEY || "";
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID || "";
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN || "";
@@ -31,7 +31,7 @@ export const stringToBool = (s: any) => {
   else return false;
 };
 
-export const sendSMS = async (
+export const sendConfirmationSMS = async (
   phoneNumber: string,
   name: string,
   address: string,
@@ -41,20 +41,18 @@ export const sendSMS = async (
   await twilioClient.messages.create({
     body: `Thanks ${name}, for your time on the phone just now. We look forward to meeting you ${time}, ${date} at ${await addressForSMS(
       address
-    )}. \nThe Bolton Group Estate Agents`,
+    )}. \nPlease message or call ${boltonNotificationNumber} for any inquiries.\n\nThe Bolton Group Estate Agents`,
     from: twilioPhoneNumber,
     to: phoneNumber,
   });
   console.log(`SMS sent to ${phoneNumber}`);
 };
 
-export const sendBookingNotificationSMS = async (
-  body: string,
-) => {
+export const sendBookingNotificationSMS = async (body: string) => {
   await twilioClient.messages.create({
     body: body,
     from: twilioPhoneNumber,
     to: boltonNotificationNumber,
   });
   console.log(`Notification SMS sent to ${boltonNotificationNumber}`);
-}
+};
