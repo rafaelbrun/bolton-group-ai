@@ -12,7 +12,9 @@ import {
   SheetRow,
   updateRowInSheet,
 } from "../services/googleSheet";
-import { addHours, addMonths } from "date-fns";
+import { addHours, addMonths, addBusinessDays } from "date-fns";
+import { testModeOn } from "../services/firestore";
+import { debug } from "firebase-functions/logger";
 
 enum CallBackReason {
   UNSUCCESSFUL_CALL = "Unsuccessful Call",
@@ -49,7 +51,6 @@ const shouldCallBeLogged = (message: any): boolean => {
   return (
     (message.type === "end-of-call-report" || message.call.endedAt === null) &&
     message.call.type !== "webCall" &&
-    message.call.customer.number !== "+61434849738" &&
     message.call.customer.number !== "+61430082233"
   );
 };
@@ -66,9 +67,9 @@ const formatDuration = (seconds: number) => {
 const getCallPrice = (durationSeconds: number, callType: string) => {
   if (!durationSeconds) return 0;
   if (callType === "inboundPhoneCall") return 1;
-  if (durationSeconds < 10) return 0;
+  if (durationSeconds < 20) return 0;
 
-  return (durationSeconds / 60).toFixed(2);
+  return 1.25;
 };
 
 const formatISOString = (endedAt: string | number | Date) => {
@@ -129,7 +130,9 @@ const getCallBack = (
 
   if (!stringToBool(message.analysis.successEvaluation)) {
     return {
-      callBackDate: "",
+      callBackDate: formatISOString(
+        addBusinessDays(brisbaneTime, 1).toISOString()
+      ),
       callBackReason: CallBackReason.UNSUCCESSFUL_CALL,
     };
   }
@@ -195,6 +198,16 @@ const updateContactGoogleSheet = async (
   if (structuredData?.callForMarketUpdate)
     moreInfoArray.push(MoreInfo.MARKET_UPDATE);
 
+  let callBackCount = row[10] ? Number(row[10]) : 0;
+  if (
+    latestOutcome === CallJustOutcome.BOOKED_VALUATION ||
+    latestOutcome === CallJustOutcome.CALLED
+  ) {
+    callBackCount = 0;
+  } else {
+    callBackCount += 1;
+  }
+
   const updateValues = {
     firstName: row[0].toString(),
     address: row[1].toString(),
@@ -207,11 +220,12 @@ const updateContactGoogleSheet = async (
     latestOutcome,
     latestObjection: structuredData?.callObjection || row[8]?.toString(),
     callBackDate: callBack.callBackDate,
+    callBackCount,
   };
 
   await updateRowInSheet(
     process.env.GOOGLE_EOC_SHEET_ID || "",
-    `contacts!A${index + 1}:J${index + 1}`,
+    `contacts!A${index + 1}:K${index + 1}`,
     updateValues
   );
 };
@@ -263,6 +277,11 @@ const handleBookedValuation = async (
   contactRow: SheetRow[],
   index: number
 ): Promise<string> => {
+  if (await testModeOn()) {
+    debug("Test mode is ON, skipping SMS sending.");
+    return "Test mode is ON, skipping SMS sending.";
+  }
+
   try {
     const {
       callRecipientFirstName,
@@ -273,6 +292,7 @@ const handleBookedValuation = async (
 
     await sendConfirmationSMS(
       message.call.customer.number,
+      message.phoneNumber.number,
       callRecipientFirstName,
       addressOfPropertyToBeEvaluated,
       timeOfValuation,
@@ -355,11 +375,6 @@ const saveToGoogleSheets = async (
 
 export const vapiWebhook = onRequest(async (request, response) => {
   try {
-    if (request.headers["x-vapi-secret"] !== process.env.VAPI_WEBHOOK_SECRET) {
-      response.status(401).send("Unauthorized");
-      return;
-    }
-
     const { message } = request.body;
 
     if (!shouldCallBeLogged(message)) {
@@ -374,7 +389,7 @@ export const vapiWebhook = onRequest(async (request, response) => {
 
     const { row, index } = await searchRowsInSheet(
       process.env.GOOGLE_EOC_SHEET_ID || "",
-      "contacts!A:I",
+      "contacts!A:K",
       numberWithoutPlus,
       3
     );
