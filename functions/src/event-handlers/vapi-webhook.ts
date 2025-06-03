@@ -67,9 +67,13 @@ const formatDuration = (seconds: number) => {
 const getCallPrice = (durationSeconds: number, callType: string) => {
   if (!durationSeconds) return 0;
   if (callType === "inboundPhoneCall") return 1;
-  if (durationSeconds < 20) return 0;
+  if (durationSeconds <= 19) return 0;
 
   return 1.25;
+};
+
+const getTwilioCharges = (durationMinutes: number) => {
+  return Math.floor(durationMinutes) * 0.075;
 };
 
 const formatISOString = (endedAt: string | number | Date) => {
@@ -154,13 +158,16 @@ const logCallPricingGoogleSheetRow = async (id: string, message: any) => {
       ? formatDuration(message.durationSeconds)
       : "0s",
     vapiCharges: message.cost ?? 0,
+    twilioCharges: message.durationMinutes
+      ? getTwilioCharges(message.durationMinutes)
+      : 0,
     callPrice: getCallPrice(message.durationSeconds, message.call.type),
     callId: id,
     dbUrl: `=HYPERLINK("https://console.firebase.google.com/project/vapi-no-make/firestore/databases/-default-/data/~2Fvapi-calls~2F${id}", "DB Link")`,
   };
   await appendRowToSheet(
     process.env.GOOGLE_PRICING_SHEET_ID || "",
-    "BoltonGroup!A:H",
+    "BoltonGroup!A:I",
     newRow
   );
 };
@@ -256,7 +263,7 @@ const logCallGoogleSheetRow = async (id: string, message: any) => {
     callback: callBack.callBackDate,
     callbackReason: callBack.callBackReason,
     endedAt: formatISOString(addHours(endedDate, 10).toISOString()),
-    recordingURL: message.artifact?.recordingUrl || "",
+    recordingURL: "",
     duration: message.durationSeconds
       ? formatDuration(message.durationSeconds)
       : "0s",
@@ -325,6 +332,9 @@ const saveToFirestore = async (
       .set({
         ...message,
         followUpStatus,
+        twilioCost: message.durationMinutes
+          ? getTwilioCharges(message.durationMinutes)
+          : 0,
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
     return { success: true, message: "VAPI call saved to Firestore" };

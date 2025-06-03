@@ -54,7 +54,7 @@ export const fetchLeadList = onSchedule(
     try {
       const auth = await googleAuthorize();
       const callPerDay = await callsPerDay();
-      const maxRowsPerRun = Math.ceil(callPerDay / 30);
+      const maxRowsPerRun = Math.ceil(callPerDay / 27);
       const nowBrisbane = addHours(new Date(), 10);
       const isTestMode = await testModeOn();
       const sheets = require("googleapis").google.sheets({
