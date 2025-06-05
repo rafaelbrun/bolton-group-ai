@@ -67,13 +67,14 @@ const formatDuration = (seconds: number) => {
 const getCallPrice = (durationSeconds: number, callType: string) => {
   if (!durationSeconds) return 0;
   if (callType === "inboundPhoneCall") return 1;
-  if (durationSeconds <= 19) return 0;
+  if (durationSeconds < 10) return 0;
 
   return 1.25;
 };
 
 const getTwilioCharges = (durationMinutes: number) => {
-  return Math.floor(durationMinutes) * 0.075;
+  if (!durationMinutes || durationMinutes <= 0) return 0;
+  return Math.ceil(durationMinutes) * 0.075;
 };
 
 const formatISOString = (endedAt: string | number | Date) => {
@@ -158,9 +159,7 @@ const logCallPricingGoogleSheetRow = async (id: string, message: any) => {
       ? formatDuration(message.durationSeconds)
       : "0s",
     vapiCharges: message.cost ?? 0,
-    twilioCharges: message.durationMinutes
-      ? getTwilioCharges(message.durationMinutes)
-      : 0,
+    twilioCharges: getTwilioCharges(message.durationMinutes),
     callPrice: getCallPrice(message.durationSeconds, message.call.type),
     callId: id,
     dbUrl: `=HYPERLINK("https://console.firebase.google.com/project/vapi-no-make/firestore/databases/-default-/data/~2Fvapi-calls~2F${id}", "DB Link")`,
@@ -332,9 +331,7 @@ const saveToFirestore = async (
       .set({
         ...message,
         followUpStatus,
-        twilioCost: message.durationMinutes
-          ? getTwilioCharges(message.durationMinutes)
-          : 0,
+        twilioCost: getTwilioCharges(message.durationMinutes),
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
     return { success: true, message: "VAPI call saved to Firestore" };
