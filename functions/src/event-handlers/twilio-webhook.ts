@@ -3,6 +3,9 @@ import { logger } from "firebase-functions/v1";
 import { onRequest } from "firebase-functions/v2/https";
 import { appendRowToSheet } from "../services/googleSheet";
 import { addHours } from "date-fns";
+import { call } from "../utils/utils";
+import { CONSTANTS } from "../utils/constants";
+import { currentBrisbaneTimeISO } from "../utils/time-utils";
 
 const twilioSignature = twilio.validateRequest;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN || "";
@@ -32,6 +35,9 @@ export const twilioWebhook = onRequest(async (request, response) => {
     return;
   }
 
+  const messageBody = Body.toLowerCase().trim();
+  const shouldTriggerCall = messageBody.includes("call me jen");
+
   const todayBrisbane = addHours(new Date(), 10);
 
   try {
@@ -42,7 +48,39 @@ export const twilioWebhook = onRequest(async (request, response) => {
       when: todayBrisbane.toISOString(),
     });
 
-    response.status(200).send("SMS received successfully");
+    if (shouldTriggerCall) {
+      try {
+        logger.info(
+          `Triggering VAPI call to ${From} due to "Call me jen" message`
+        );
+
+        const customerName = From.replace("+", "") || "Customer";
+
+        await call(
+          CONSTANTS.jenId,
+          0,
+          From,
+          {
+            contact_name: customerName,
+            contact_suburb: "Unknown",
+            now: currentBrisbaneTimeISO(),
+          },
+          customerName
+        );
+
+        logger.info(`VAPI call initiated successfully for ${From}`);
+        response
+          .status(200)
+          .send("SMS received and call initiated successfully");
+      } catch (callError) {
+        logger.error("Error initiating VAPI call", callError);
+        response
+          .status(200)
+          .send("SMS received successfully, but call initiation failed");
+      }
+    } else {
+      response.status(200).send("SMS received successfully");
+    }
   } catch (error) {
     logger.error("Error processing SMS", error);
     response.status(500).send("Internal Server Error");
