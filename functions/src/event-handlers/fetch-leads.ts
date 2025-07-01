@@ -96,9 +96,9 @@ export const fetchLeadList = onSchedule(
       for (let i = 0; i < leadsToCall.length; i++) {
         const row = leadsToCall[i];
         const customerPhoneNumber = row[3]?.toString();
-        const contact_name = row[0]?.toString();
+        const contact_name = row[0]?.toString() || "Recipient";
         const phoneNumberIndex = i % CONSTANTS.phoneNumbers.length;
-        if (customerPhoneNumber && contact_name) {
+        if (customerPhoneNumber) {
           debug(`Calling ${contact_name} at ${customerPhoneNumber}`);
           await call(
             CONSTANTS.jenId,
